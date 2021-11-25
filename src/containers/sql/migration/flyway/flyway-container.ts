@@ -1,35 +1,53 @@
-import { AbstractStartedMigrationContainer } from "../abstract-migration-container";
-import { GenericContainer } from "testcontainers";
+import {
+  AbstractMigrationContainer,
+  AbstractStartedMigrationContainer,
+} from "../abstract-migration-container";
 import { AbstractStartedDatabaseContainer } from "../../databases/abstract-database-container";
+import { GenericContainer, GenericContainerBuilder } from "testcontainers";
 import path from "path";
 
-export class FlywayContainer {
-  private container: Promise<GenericContainer>;
+const IMAGE = "node-integration-testing/flyway:latest";
+
+export class FlywayContainer extends AbstractMigrationContainer<StartedFlywayContainer> {
+  private readonly containerBuilder: GenericContainerBuilder;
 
   constructor(image = "flyway/flyway:latest-alpine") {
-    this.container = GenericContainer.fromDockerfile(path.resolve(__dirname))
-      .withBuildArg("IMAGE", image)
-      .build();
+    super(IMAGE);
+
+    this.containerBuilder = GenericContainer.fromDockerfile(
+      path.resolve(__dirname)
+    ).withBuildArg("IMAGE", image);
   }
 
-  withLocation(path: string): this {
-    this.container = this.container.then((c) =>
-      c.withBindMount(path, "/flyway/sql", "ro")
-    );
+  withLocation(schemaName: string, path: string): this {
+    this.withBindMount(path, `/flyway/sql/${schemaName}`, "ro");
     return this;
   }
 
   async start(): Promise<StartedFlywayContainer> {
-    return new StartedFlywayContainer(await (await this.container).start());
+    await this.containerBuilder.build(IMAGE);
+    return new StartedFlywayContainer(await super.init());
   }
 }
 
 export class StartedFlywayContainer extends AbstractStartedMigrationContainer {
-  migrate(container: AbstractStartedDatabaseContainer) {
-    return this.startedTestContainer.exec([
+  async migrate(schema: string, container: AbstractStartedDatabaseContainer) {
+    await this.startedTestContainer.exec([
       "/bin/sh",
       "-c",
-      `flyway -url=jdbc:${container.getInternalUrl()} -user=${container.getUsername()} -password=${container.getPassword()} migrate >> console.log 2>&1`,
+      `flyway -url=jdbc:${container.getInternalUrl(
+        schema
+      )} -user=${container.getUsername()} -password=${container.getPassword()} -locations=filesystem:/flyway/sql/${schema} migrate >> console.log 2>&1`,
+    ]);
+  }
+
+  async clean(schema: string, container: AbstractStartedDatabaseContainer) {
+    await this.startedTestContainer.exec([
+      "/bin/sh",
+      "-c",
+      `flyway -url=jdbc:${container.getInternalUrl(
+        schema
+      )} -user=${container.getUsername()} -password=${container.getPassword()} clean >> console.log 2>&1`,
     ]);
   }
 }

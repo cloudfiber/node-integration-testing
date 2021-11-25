@@ -7,7 +7,7 @@ import { Port } from "testcontainers/dist/port";
 
 const PORT = 5432;
 
-export class PostgresqlContainer extends AbstractDatabaseContainer {
+export class PostgresqlContainer extends AbstractDatabaseContainer<StartedPostgresqlContainer> {
   private database = "postgres";
   private username = "postgres";
   private password = "postgres";
@@ -44,7 +44,7 @@ export class PostgresqlContainer extends AbstractDatabaseContainer {
     this.withWaitStrategy(Wait.forHealthCheck());
 
     return new StartedPostgresqlContainer(
-      await super.start(),
+      await super.init(),
       this.database,
       this.username,
       this.password
@@ -81,7 +81,13 @@ export class StartedPostgresqlContainer extends AbstractStartedDatabaseContainer
     return this.password;
   }
 
-  getInternalUrl(): string {
-    return `postgresql://host.testcontainers.internal:${this.port}/${this.database}`;
+  getInternalUrl(database?: string): string {
+    return `postgresql://host.testcontainers.internal:${this.port}/${
+      database ?? this.database
+    }`;
+  }
+
+  async createSchema(database: string): Promise<void> {
+    await this.exec(["createdb", "-U", this.username, database]);
   }
 }
