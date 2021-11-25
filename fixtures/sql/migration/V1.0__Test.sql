@@ -1,0 +1,7 @@
+CREATE TABLE test
+(
+    id INT2 PRIMARY KEY
+);
+
+INSERT INTO test
+VALUES (1);
