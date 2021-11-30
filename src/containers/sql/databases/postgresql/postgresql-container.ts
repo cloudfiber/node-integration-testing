@@ -2,8 +2,17 @@ import {
   AbstractDatabaseContainer,
   AbstractStartedDatabaseContainer,
 } from "../abstract-database-container";
-import { StartedTestContainer, Wait } from "testcontainers";
+import {
+  StartedTestContainer,
+  StoppedTestContainer,
+  TestContainers,
+  Wait,
+} from "testcontainers";
 import { Port } from "testcontainers/dist/port";
+import { log } from "../../../../logger";
+import { Connection } from "../../../../utils/sql/query";
+import { StopOptions } from "testcontainers/dist/test-container";
+import { pgConnection } from "../../../../utils/sql/pg";
 
 const PORT = 5432;
 
@@ -43,8 +52,15 @@ export class PostgresqlContainer extends AbstractDatabaseContainer<StartedPostgr
     });
     this.withWaitStrategy(Wait.forHealthCheck());
 
+    log.debug(`Staring Postgres Container`);
+    const startedTestContainer = await super.init();
+    await TestContainers.exposeHostPorts(
+      startedTestContainer.getMappedPort(PORT)
+    );
+    log.debug(`Postgres Container started`);
+
     return new StartedPostgresqlContainer(
-      await super.init(),
+      startedTestContainer,
       this.database,
       this.username,
       this.password
@@ -87,7 +103,18 @@ export class StartedPostgresqlContainer extends AbstractStartedDatabaseContainer
     }`;
   }
 
-  async createSchema(database: string): Promise<void> {
+  async createDatabase(database: string): Promise<Connection> {
+    log.debug(`Creating ${database} database`);
     await this.exec(["createdb", "-U", this.username, database]);
+    log.debug(`Database ${database} created`);
+    return pgConnection(this, database);
+  }
+
+  getConnection(): Promise<Connection> {
+    return pgConnection(this, this.database);
+  }
+
+  async stop(options?: Partial<StopOptions>): Promise<StoppedTestContainer> {
+    return super.stop(options);
   }
 }

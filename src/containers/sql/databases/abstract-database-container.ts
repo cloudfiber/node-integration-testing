@@ -3,6 +3,7 @@ import {
   AbstractStartedContainer,
 } from "../../abstract-container";
 import { Port } from "testcontainers/dist/port";
+import { Connection } from "../../../utils/sql/query";
 
 export abstract class AbstractDatabaseContainer<
   C extends AbstractStartedContainer
@@ -19,9 +20,13 @@ export abstract class AbstractStartedDatabaseContainer extends AbstractStartedCo
 
   abstract getPassword(): string;
 
+  abstract getDatabase(): string;
+
   abstract getInternalUrl(database: string): string;
 
   abstract getPort(): Port;
 
-  abstract createSchema(database: string): Promise<void>;
+  abstract createDatabase(database: string): Promise<Connection>;
+
+  abstract getConnection(): Promise<Connection>;
 }

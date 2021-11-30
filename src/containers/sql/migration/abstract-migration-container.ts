@@ -2,7 +2,7 @@ import {
   AbstractContainer,
   AbstractStartedContainer,
 } from "../../abstract-container";
-import { AbstractStartedDatabaseContainer } from "../databases/abstract-database-container";
+import { Connection } from "../../../utils/sql/query";
 
 export abstract class AbstractMigrationContainer<
   M extends AbstractStartedMigrationContainer
@@ -17,13 +17,7 @@ export abstract class AbstractMigrationContainer<
 }
 
 export abstract class AbstractStartedMigrationContainer extends AbstractStartedContainer {
-  abstract migrate(
-    schemaName: string,
-    container: AbstractStartedDatabaseContainer
-  ): Promise<void>;
+  abstract migrate(schemaName: string, connection: Connection): Promise<void>;
 
-  abstract clean(
-    schemaName: string,
-    container: AbstractStartedDatabaseContainer
-  ): Promise<void>;
+  abstract clean(connection: Connection): Promise<void>;
 }

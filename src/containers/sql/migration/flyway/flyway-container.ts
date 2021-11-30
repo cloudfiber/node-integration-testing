@@ -2,9 +2,10 @@ import {
   AbstractMigrationContainer,
   AbstractStartedMigrationContainer,
 } from "../abstract-migration-container";
-import { AbstractStartedDatabaseContainer } from "../../databases/abstract-database-container";
 import { GenericContainer, GenericContainerBuilder } from "testcontainers";
 import path from "path";
+import { log } from "../../../../logger";
+import { Connection } from "../../../../utils/sql/query";
 
 const IMAGE = "node-integration-testing/flyway:latest";
 
@@ -25,29 +26,36 @@ export class FlywayContainer extends AbstractMigrationContainer<StartedFlywayCon
   }
 
   async start(): Promise<StartedFlywayContainer> {
+    log.debug(`Building image ${IMAGE}`);
     await this.containerBuilder.build(IMAGE);
-    return new StartedFlywayContainer(await super.init());
+    log.debug(`Starting Flyway Container`);
+    return new StartedFlywayContainer(
+      await super.init().then((value) => {
+        log.debug("Flyway Container started");
+        return value;
+      })
+    );
   }
 }
 
 export class StartedFlywayContainer extends AbstractStartedMigrationContainer {
-  async migrate(schema: string, container: AbstractStartedDatabaseContainer) {
-    await this.startedTestContainer.exec([
+  async migrate(schema: string, connection: Connection) {
+    log.debug(`Starting ${schema} migration`);
+    await this.exec([
       "/bin/sh",
       "-c",
-      `flyway -url=jdbc:${container.getInternalUrl(
-        schema
-      )} -user=${container.getUsername()} -password=${container.getPassword()} -locations=filesystem:/flyway/sql/${schema} migrate >> console.log 2>&1`,
+      `flyway -url="jdbc:${connection.connectionString}" -locations=filesystem:/flyway/sql/${schema} migrate >> console.log 2>&1`,
     ]);
+    log.debug(`${schema} migration done`);
   }
 
-  async clean(schema: string, container: AbstractStartedDatabaseContainer) {
-    await this.startedTestContainer.exec([
+  async clean(connection: Connection) {
+    log.debug(`Starting cleanup`);
+    await this.exec([
       "/bin/sh",
       "-c",
-      `flyway -url=jdbc:${container.getInternalUrl(
-        schema
-      )} -user=${container.getUsername()} -password=${container.getPassword()} clean >> console.log 2>&1`,
+      `flyway -url="jdbc:${connection.connectionString}" clean >> console.log 2>&1`,
     ]);
+    log.debug(`Cleanup done`);
   }
 }

@@ -2,34 +2,30 @@ import { PostgresqlContainer } from "../../databases/postgresql/postgresql-conta
 import { schemaPath } from "../../../../../fixtures/sql/migration";
 import { expect } from "chai";
 import { FlywayContainer } from "./flyway-container";
-import { TestContainers } from "testcontainers";
-import { pgClient } from "../../../../utils/sql/pg";
 
 describe("FlywayContainer", function () {
   it("should migrate to database container", async function () {
     // Arrange
     const startedPostgresContainer = await new PostgresqlContainer().start();
-    const migrateSchema = startedPostgresContainer.getDatabase();
-    await TestContainers.exposeHostPorts(startedPostgresContainer.getPort());
+    const connection = await startedPostgresContainer.getConnection();
+    const migrateSchema = "schema";
 
     const startedFlywayContainer = await new FlywayContainer()
-      .withLocation(startedPostgresContainer.getDatabase(), schemaPath)
+      .withLocation(migrateSchema, schemaPath)
       .start();
 
-    const client = await pgClient(startedPostgresContainer, migrateSchema);
-
     // Act
-    await startedFlywayContainer.migrate(
-      migrateSchema,
-      startedPostgresContainer
-    );
+    await startedFlywayContainer.migrate(migrateSchema, connection);
 
     // Assert
-    const result = await client.query("SELECT * FROM test");
-    expect(result.rowCount).equal(1);
+    const result = await connection.query(
+      "SELECT * FROM pg_catalog.pg_tables WHERE tablename = $1",
+      ["test"]
+    );
+    expect(result).length(1);
 
     //Cleanup
-    await client.end();
+    await connection.close();
     await startedFlywayContainer.stop({ removeVolumes: true });
     await startedPostgresContainer.stop({ removeVolumes: true });
   });
@@ -37,29 +33,27 @@ describe("FlywayContainer", function () {
   it("should be able to clean database", async function () {
     // Arrange
     const startedPostgresContainer = await new PostgresqlContainer().start();
-    const cleanSchema = startedPostgresContainer.getDatabase();
-    await TestContainers.exposeHostPorts(startedPostgresContainer.getPort());
+    const connection = await startedPostgresContainer.getConnection();
+    const cleanSchema = "schema";
 
     const startedFlywayContainer = await new FlywayContainer()
-      .withLocation(startedPostgresContainer.getDatabase(), schemaPath)
+      .withLocation(cleanSchema, schemaPath)
       .start();
 
-    const client = await pgClient(startedPostgresContainer, cleanSchema);
-
-    await startedFlywayContainer.migrate(cleanSchema, startedPostgresContainer);
+    await startedFlywayContainer.migrate(cleanSchema, connection);
 
     // Act
-    await startedFlywayContainer.clean(cleanSchema, startedPostgresContainer);
+    await startedFlywayContainer.clean(connection);
 
     // Assert
-    const result = await client.query(
+    const result = await connection.query(
       "SELECT * FROM pg_catalog.pg_tables WHERE tablename = $1",
       ["test"]
     );
-    expect(result.rowCount).equal(0);
+    expect(result).length(0);
 
     //Cleanup
-    await client.end();
+    await connection.close();
     await startedFlywayContainer.stop({ removeVolumes: true });
     await startedPostgresContainer.stop({ removeVolumes: true });
   });
